@@ -10,12 +10,12 @@ var getKeysPressed = keyboardApi.getKeysPressed;
 var getEscPress = keyboardApi.getEscPress;
 var WIDTH = 240;
 var HEIGHT = 135;
-var BLACK = 0;
-var WHITE = 16777215;
-var GRAY = 8421504;
-var DIMGRAY = 4210752;
-var YELLOW = 16776960;
-var CYAN = 65535;
+var BLACK = 0x0000;
+var WHITE = 0xFFFF;
+var GRAY = 0x8410;
+var DIMGRAY = 0x4208;
+var YELLOW = 0xFFE0;
+var CYAN = 0x07FF;
 var GHOSTCOL = DIMGRAY;
 var GHOST = 1;
 var SHAPES = [
@@ -27,8 +27,8 @@ var SHAPES = [
 [[0,0,0,1,1,1,2,1],[1,0,2,0,1,1,1,2],[0,1,1,1,2,1,2,2],[1,0,1,1,0,2,1,2]], // J
 [[2,0,0,1,1,1,2,1],[1,0,1,1,1,2,2,2],[0,1,1,1,2,1,0,2],[0,0,1,0,1,1,1,2]]  // L
 ];
-var COLORS = [65535, 16776960, 8388736, 65280, 16711680, 255, 16753920];
-var PVX = [0, 0, 3, 3, 3, 3, 3]; // preview box x-offset per piece (px units, in cells)
+var COLORS = [0x07FF, 0xFFE0, 0xA81F, 0x07E0, 0xF800, 0x2ADF, 0xFD20];
+var PVX = [0, 0, 3, 3, 3, 3, 3]; // preview centering offset per piece, in px (NOT cells)
 var PVY = [3, 6, 6, 6, 6, 6, 6]; // I is 1 row tall; everything else is 2
 var CELL = 6, COLS = 10, ROWS = 20, NCELLS = 200;
 var WELL_X = 90, WELL_Y = 8, WELL_W = 60, WELL_H = 120;
@@ -41,6 +41,7 @@ var LINES_PER_LEVEL = 10;
 var LOCK_MS = 300;
 var CLEAR_MS = 140;
 var KEY_LEFT = ',', KEY_RIGHT = '/', KEY_ROT = ';', KEY_DOWN = '.';
+var KEY_ALT = 'Alt';
 var DAS_DELAY = 170, DAS_RATE = 55, SOFT_RATE = 45;
 var STATE_MENU = 0, STATE_PLAY = 1, STATE_PAUSED = 2, STATE_OVER = 3;
 var state = STATE_MENU;
@@ -160,16 +161,11 @@ clearRows.push(r);
 drawFillRect(WELL_X, WELL_Y + r * CELL, WELL_W, CELL, WHITE);
 }
 }
-if (clearRows.length > 0) {
-audio.tone(660, 30);
-clearTimer = now() + CLEAR_MS;
-} else {
-audio.tone(160, 18);
-spawnPiece();
-}
+if (clearRows.length > 0) clearTimer = now() + CLEAR_MS;
+else spawnPiece();
 }
 function finishClear() {
-var k, r, c, base, nl;
+var k, r, c, base;
 for (k = 0; k < clearRows.length; k++) {
 base = clearRows[k] * COLS;
 for (c = 0; c < COLS; c++) shadow[base + c] = -1;
@@ -180,8 +176,7 @@ for (c = 0; c < COLS; c++) board[c] = 0;
 }
 score += LINE_SCORE[clearRows.length] * level;
 lines += clearRows.length;
-nl = 1 + Math.floor(lines / LINES_PER_LEVEL);
-if (nl !== level) { level = nl; audio.tone(880, 30); }
+level = 1 + Math.floor(lines / LINES_PER_LEVEL);
 if (score > hiScore) hiScore = score;
 clearRows = [];
 clearTimer = 0;
@@ -259,8 +254,8 @@ if (nextType === lastNext) return;
 drawFillRect(PV_X, PV_Y, 24, 24, BLACK);
 s = SHAPES[nextType][0];
 for (i = 0; i < 8; i += 2) {
-x = PV_X + (PVX[nextType] + s[i]) * CELL;
-y = PV_Y + (PVY[nextType] + s[i + 1]) * CELL;
+x = PV_X + PVX[nextType] + s[i] * CELL;
+y = PV_Y + PVY[nextType] + s[i + 1] * CELL;
 drawFillRect(x, y, CELL, CELL, COLORS[nextType]);
 }
 lastNext = nextType;
@@ -297,7 +292,7 @@ drawString("BLOCKS", 66, 30);
 setTextSize(1);
 setTextColor(WHITE);
 drawString(", . / MOVE  ; ROTATE", 60, 62);
-drawString("SPACE DROP  ENTER PAUSE", 51, 74);
+drawString("SPACE ALT DROP  ENTER PAUSE", 39, 74);
 drawString("ESC QUIT", 96, 86);
 setTextColor(YELLOW);
 drawString("PRESS ENTER", 87, 108);
@@ -367,7 +362,7 @@ dasTimer = t + DAS_RATE;
 var kU = keyDown(keys, KEY_ROT);
 if (kU && !heldRot) tryRotate();
 heldRot = kU;
-var kSp = keyDown(keys, ' ') || keyDown(keys, 'Space');
+var kSp = keyDown(keys, ' ') || keyDown(keys, 'Space') || keyDown(keys, KEY_ALT);
 if (kSp && !heldDrop) hardDrop();
 heldDrop = kSp;
 if (keyDown(keys, KEY_DOWN)) {            // soft drop: free-running, no initial delay

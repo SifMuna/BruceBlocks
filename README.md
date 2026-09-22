@@ -7,7 +7,7 @@ M5Stack Cardputer ADV.
 ## What this is
 
 `BruceBlocks.js` is a self-contained Bruce JS app: no build step, no
-dependencies beyond Bruce's own `display`/`keyboard`/`audio` globals. Drop it
+dependencies beyond Bruce's own `display`/`keyboard` modules. Drop it
 on the SD card and run it from Bruce's JS interpreter menu.
 
 - **Layout:** landscape 240×135, a 10×20 well (6 px cells) centered
@@ -28,7 +28,7 @@ on the SD card and run it from Bruce's JS interpreter menu.
 | `,` / `/` | move left / right (holds auto-repeat) |
 | `;` | rotate clockwise |
 | `.` | soft drop (holds auto-repeat) |
-| Space | hard drop |
+| Space / Alt | hard drop |
 | Enter | pause / confirm menu selection |
 | Esc | quit to the Bruce menu |
 
@@ -40,9 +40,9 @@ menu. They're interchangeable; both behave identically.
 
 ## Files
 
-- `BruceBlocks.js` — readable, commented source (~17.6 KB, 551 lines).
+- `BruceBlocks.js` — readable, commented source (~17.9 KB, 551 lines).
 - `min/BruceBlocks.js` — the same file with `//` comments, blank lines, and
-  leading indentation stripped (~13 KB, 492 lines). **Not real
+  leading indentation stripped (~13 KB, 487 lines). **Not real
   minification** — identifiers and structure are untouched, so behavior is
   identical. Regenerate after every edit to the full file with:
 
@@ -70,7 +70,7 @@ firmware, WiFi stack, and framebuffer. Script *source size* is loaded into
 heap before the interpreter allocates anything for it — a 92 KB script (the
 stock bundled "Arcade Games" app, see `../arcade-split/`) silently bounces
 back to the Bruce menu instead of running. The proven-safe envelope from that
-project's six split-out games is roughly 12–30 KB; this file sits at 17.6 KB
+project's six split-out games is roughly 12–30 KB; this file sits at 17.9 KB
 (13 KB minified), comfortably inside it.
 
 The bigger constraint in practice is the **API surface**, which is
@@ -83,9 +83,9 @@ var keyboardApi = require('keyboard'); // getKeysPressed(), getEscPress()
 
 That's the entire display API — no `drawPixel`/`drawLine`, no size query,
 and critically **no double-buffering or flush call**: every draw hits the
-panel immediately. `audio.tone(freq, ms)` and `delay`/`now` are bare
-globals, no `require` needed. The JS engine is **strict ES5** — no `let`,
-`const`, arrow functions, template literals, classes, or `for...of`.
+panel immediately. `delay`/`now` are bare globals, no `require` needed.
+The JS engine is **strict ES5** — no `let`, `const`, arrow functions,
+template literals, classes, or `for...of`.
 
 ### The rendering approach
 
@@ -124,13 +124,25 @@ flashed rows' `shadow` entries afterward to repair the desync.
   `,`=left, `/`=right (confirmed against Bruce's firmware source and its own
   Snake example). Space's reported string wasn't independently confirmed, so
   hard drop checks for both `' '` and `'Space'`.
+- Modifier keys are unreliable. Alt comes through `getKeysPressed()` as
+  `'Alt'` and works, which is why hard drop uses it. **Ctrl is never
+  reported**: `keyboard_js.cpp` only maps Opt (`0x00`), Alt (`0x82`), and Tab
+  (`0x2B`), so Ctrl's `0x80` is silently dropped. Opt *should* arrive as
+  `'Option'` according to the firmware source, but it did nothing when tested
+  on a Cardputer ADV, so rotate doesn't use it. While a modifier is held, the
+  firmware also suppresses ordinary character keys.
+- **Colors are 16-bit RGB565, not 24-bit `0xRRGGBB`.** The number goes
+  straight to the panel (Bruce's own `display.color(r, g, b)` returns 565), so
+  a 24-bit value is truncated to its low 16 bits. Pure red `0xFF0000` becomes
+  `0x0000`, which is black. An earlier palette hit exactly this: the Z piece
+  was invisible and the T piece was nearly invisible.
 - `drawString` always takes exactly 3 args; `setTextColor` always takes
   exactly 1 (no background-color form). There's no `textWidth()` — all text
   layout uses the fixed metric of 6 px/char at `setTextSize(1)`, 12 at size
   2, 18 at size 3.
-- `audio.tone()` **blocks**. Tones are only used on lock, line-clear, and
-  level-up — never on move/rotate, which would freeze the main loop at DAS
-  repeat rates.
+- The game is deliberately silent. If you add sound, note that the bare
+  global `audio.tone(freq, ms)` **blocks**, so keep it off move/rotate: at
+  DAS repeat rates it would freeze the main loop.
 
 See `../arcade-split/README.md` for more general Bruce JS API notes gathered
 while building the games in that directory (this file mostly assumes
